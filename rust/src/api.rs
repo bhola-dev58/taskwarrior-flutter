@@ -57,6 +57,63 @@ fn get_all_tasks(taskdb_dir_path: String) -> Vec<HashMap<String, String>> {
 }
 
 #[frb]
+pub fn query_task(
+    taskdb_dir_path: String,
+    uuid: Option<String>,
+    status: Option<String>,
+    tags: Option<String>,
+    project: Option<String>,
+) -> Result<String, taskchampion::Error> {
+    let all_tasks = get_all_tasks(taskdb_dir_path);
+    
+    // Filter the tasks based on the provided attributes
+    let filtered_tasks: Vec<HashMap<String, String>> = all_tasks.into_iter().filter(|map| {
+        let mut matches = true;
+        
+        // 1. Filter by UUID
+        if let Some(ref q_uuid) = uuid {
+            if map.get("uuid") != Some(q_uuid) { matches = false; }
+        }
+        
+        // 2. Filter by Status
+        if let Some(ref q_status) = status {
+            if map.get("status") != Some(q_status) { matches = false; }
+        }
+        
+        // 3. Filter by Project
+        if let Some(ref q_project) = project {
+            if map.get("project") != Some(q_project) { matches = false; }
+        }
+        
+        // 4. Filter by Tags (+ means must have, - means must NOT have)
+        if let Some(ref q_tags) = tags {
+            let task_tags = map.get("tags").map(|s| s.as_str()).unwrap_or("");
+            for q_tag in q_tags.split_whitespace() {
+                if q_tag.starts_with("-") {
+                    let neg_tag = &q_tag[1..]; // Remove the '-' symbol
+                    if task_tags.contains(neg_tag) { matches = false; } // Fail if tag exists
+                } else if q_tag.starts_with("+") {
+                    let pos_tag = &q_tag[1..]; // Remove the '+' symbol
+                    if !task_tags.contains(pos_tag) { matches = false; } // Fail if tag doesn't exist
+                } else {
+                    // Normal tag search
+                    if !task_tags.contains(q_tag) { matches = false; }
+                }
+            }
+        }
+        
+        matches
+    }).collect();
+
+    // Convert the filtered list to JSON
+    let json = serde_json::to_string(&filtered_tasks)
+        .map_err(|e| taskchampion::Error::Other(anyhow::anyhow!(e)))?;
+    Ok(json)
+}
+
+
+
+#[frb]
 pub fn delete_task(uuid_st: String, taskdb_dir_path: String) -> i8 {
     let taskdb_dir = PathBuf::from(taskdb_dir_path);
     let storage = StorageConfig::OnDisk {

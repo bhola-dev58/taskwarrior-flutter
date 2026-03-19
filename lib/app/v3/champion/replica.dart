@@ -108,6 +108,39 @@ class Replica {
     return tasks;
   }
 
+/// The Queries tasks from the Rust Replica using different attributes.
+/// - [uuid]: Filter by exact task UUID
+/// - [status]: Filter by status (e.g., "pending", "completed")
+/// - [tags]: Filter by tags. Use '+tag' to require a tag, '-tag' to exclude it.
+/// - [project]: Filter by project name
+static Future<List<TaskForReplica>> queryTasksFromReplica({
+  String? uuid,
+  String? status,
+  String? tags,
+  String? project,
+}) async {
+  var taskdbDirPath = await getReplicaPath();
+  List<TaskForReplica> tasks = [];
+  try {
+    var res = await queryTask(
+      taskdbDirPath: taskdbDirPath,
+      uuid: uuid,
+      status: status,
+      tags: tags,
+      project: project,
+    );
+    var map = jsonDecode(res);
+    tasks = List<TaskForReplica>.from(
+        map.map((e) => TaskForReplica.fromJson(Map<String, dynamic>.from(e))));
+    debugPrint("QueryTask result: $tasks");
+  } catch (e) {
+    debugPrint("Error in queryTasksFromReplica: $e");
+    return [];
+  }
+  return tasks;
+}
+
+
   static Future<void> sync() async {
     var taskdbDirPath = await getReplicaPath();
     try {
@@ -125,6 +158,7 @@ class Replica {
       debugPrint("Error syncing Replica $e");
     }
   }
+
 
   static Future<String> getReplicaPath() async {
     String? profile = await getCurrentProfile();
